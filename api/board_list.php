@@ -4,54 +4,7 @@ include_once('../common.php');
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 
-// This function is not standard in Gnuboard.
-// We will define it here as a placeholder.
-// It should return the URL of the first attached image as a thumbnail.
-if (!function_exists('get_thumbnail_url')) {
-    function get_thumbnail_url($write_row) {
-        global $g5, $bo_table;
-        // Check for thumbnail in board files
-        $file = get_file($bo_table, $write_row['wr_id']);
-        for ($i=0; $i<count($file); $i++) {
-            if (isset($file[$i]['view']) && $file[$i]['view']) {
-                return $file[$i]['path'].'/'.$file[$i]['file'];
-            }
-        }
-
-        // If no file thumbnail, check for image in content
-        $matches = get_editor_image($write_row['wr_content']);
-        if (isset($matches[1]) && $matches[1]) {
-             return $matches[1];
-        }
-
-        return ''; // No thumbnail found
-    }
-}
-
-
-// This function is not standard in Gnuboard.
-// We will define it here as a placeholder.
-// It should return a list of files attached to the post.
-if (!function_exists('get_file_list')) {
-    function get_file_list($wr_id) {
-        global $g5, $bo_table;
-        $files = array();
-        $board_file = get_file($bo_table, $wr_id);
-        if (is_array($board_file)) {
-            for ($i=0; $i<count($board_file); $i++) {
-                $files[] = array(
-                    'href' => $board_file[$i]['href'],
-                    'source' => $board_file[$i]['source'],
-                    'size' => $board_file[$i]['size'],
-                    'download' => $board_file[$i]['download'],
-                    'content' => $board_file[$i]['content'],
-                    'view_url' => G5_BBS_URL.'/view_file.php?bo_table='.$bo_table.'&wr_id='.$wr_id.'&no='.$i,
-                );
-            }
-        }
-        return $files;
-    }
-}
+include_once('./api.lib.php');
 
 
 $bo_table = isset($_GET['bo_table']) ? preg_replace('/[^a-zA-Z0-9_]/', '', trim($_GET['bo_table'])) : '';
@@ -96,8 +49,8 @@ while($row = sql_fetch_array($result)) {
         'id' => $row['wr_id'],
         'title' => get_text($row['wr_subject']),
         'content' => $row['wr_content'],
-        'thumbnail' => get_thumbnail_url($row),
-        'files' => get_file_list($row['wr_id']),
+        'thumbnail' => get_api_thumbnail_url($row, $bo_table),
+        'files' => get_api_file_list($row['wr_id'], $bo_table),
         'date' => $row['wr_datetime'],
         'author' => get_text($row['wr_name']),
         'views' => $row['wr_hit'],

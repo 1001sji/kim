@@ -1,16 +1,27 @@
 // renderer.js
 
 // --- Configuration ---
-// IMPORTANT: The user must configure this to their GnuBoard installation URL.
-// For example: 'http://your-domain.com/gnuboard'
-const API_BASE_URL = 'http://localhost'; // <--- CONFIGURE THIS
+// User's live site URL.
+const API_BASE_URL = 'https://www.thinkocn.com';
 
 // --- DOM Elements ---
 const galleryGrid = document.getElementById('gallery-grid');
 const categoryNavs = document.querySelectorAll('.sidebar nav li');
+const searchForm = document.getElementById('search-form');
+const searchInput = document.getElementById('search-input');
+const loginBtn = document.getElementById('login-btn');
+const logoutBtn = document.getElementById('logout-btn');
+const loginModal = document.getElementById('login-modal');
+const loginModalCloseBtn = document.getElementById('login-modal-close-btn');
 
 // --- State ---
 let allPosts = []; // Store all fetched posts
+let userState = {
+    isLoggedIn: false,
+    level: 1,
+    token: null,
+    name: ''
+};
 let currentPage = 1;
 let currentBoard = 'wallpaper_free'; // Default board
 let isLoading = false;
@@ -18,6 +29,11 @@ let isLoading = false;
 // --- DOM Elements (Modal) ---
 const detailModal = document.getElementById('detail-modal');
 const modalCloseBtn = document.getElementById('modal-close-btn');
+const loginForm = document.getElementById('login-form');
+const usernameInput = document.getElementById('username');
+const passwordInput = document.getElementById('password');
+const loginErrorMsg = document.getElementById('login-error-msg');
+const userInfo = document.getElementById('user-info');
 const detailTitle = document.getElementById('detail-title');
 const detailImage = document.getElementById('detail-image');
 const detailInfoList = document.getElementById('detail-info-list');
@@ -30,10 +46,34 @@ const downloadBtn = document.getElementById('detail-download-btn');
  * Opens the detail view modal with information about a specific post.
  * @param {string} postId - The ID of the post to display.
  */
+/**
+ * Updates the UI based on the current login state.
+ */
+function updateLoginUI() {
+    if (userState.isLoggedIn) {
+        userInfo.textContent = `Welcome, ${userState.name}! (Level ${userState.level})`;
+        userInfo.style.display = 'inline';
+        logoutBtn.style.display = 'inline';
+        loginBtn.style.display = 'none';
+    } else {
+        userInfo.style.display = 'none';
+        logoutBtn.style.display = 'none';
+        loginBtn.style.display = 'inline';
+    }
+}
+
+
 async function openDetailView(postId) {
     const post = allPosts.find(p => p.id === postId);
     if (!post) {
         console.error('Post not found!');
+        return;
+    }
+
+    // Content Gating
+    const premiumBoards = ['wallpaper_premium', 'wallpaper_video'];
+    if (premiumBoards.includes(post.bo_table) && userState.level < 5) {
+        alert('이 콘텐츠를 보려면 레벨 5 이상이 필요합니다.');
         return;
     }
 
@@ -199,7 +239,11 @@ function renderWallpapers(posts, append = false) {
             </div>
         `;
 
-        item.addEventListener('click', () => openDetailView(post.id));
+        item.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            openDetailView(post.id);
+        });
 
         galleryGrid.appendChild(item);
     });
@@ -239,6 +283,40 @@ async function loadWallpapers(bo_table, page = 1, append = false) {
     }
 }
 
+/**
+ * Performs a search for wallpapers.
+ * @param {string} searchTerm - The term to search for.
+ */
+async function performSearch(searchTerm) {
+    if (isLoading) return;
+    isLoading = true;
+    galleryGrid.innerHTML = `<p>Searching for "${searchTerm}"...</p>`;
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/search.php?stx=${encodeURIComponent(searchTerm)}`);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+
+        if (data.error) {
+            throw new Error(data.error);
+        }
+
+        if (data.posts.length === 0) {
+            galleryGrid.innerHTML = `<p>No results found for "${searchTerm}".</p>`;
+        } else {
+            renderWallpapers(data.posts, false);
+        }
+
+    } catch (error) {
+        console.error('Search failed:', error);
+        galleryGrid.innerHTML = `<p style="color: #ff6b6b;">Search failed. Please try again.<br><br>Details: ${error.message}</p>`;
+    } finally {
+        isLoading = false;
+    }
+}
+
 // --- Event Listeners ---
 
 // Modal close events
@@ -263,6 +341,7 @@ document.addEventListener('DOMContentLoaded', () => {
         '동영상': 'wallpaper_video'
     };
 
+    // Category navigation
     categoryNavs.forEach(nav => {
         nav.addEventListener('click', () => {
             const categoryName = nav.innerText.substring(2).trim(); // "🏠 홈" -> "홈"
@@ -272,6 +351,76 @@ document.addEventListener('DOMContentLoaded', () => {
                 loadWallpapers(currentBoard, 1, false);
             }
         });
+    });
+
+    // Search form submission
+    searchForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const searchTerm = searchInput.value.trim();
+        if (searchTerm) {
+            performSearch(searchTerm);
+        }
+    });
+
+    // --- Login UI Listeners ---
+    loginBtn.addEventListener('click', () => {
+        loginModal.style.display = 'flex';
+    });
+
+    logoutBtn.addEventListener('click', async () => {
+        // Invalidate server session
+        await fetch(`${API_BASE_URL}/bbs/logout.php`);
+
+        // Reset local state
+        userState = { isLoggedIn: false, level: 1, token: null, name: '' };
+        updateLoginUI();
+    });
+
+    loginModalCloseBtn.addEventListener('click', () => {
+        loginModal.style.display = 'none';
+    });
+
+    loginModal.addEventListener('click', (event) => {
+        if (event.target === loginModal) {
+            loginModal.style.display = 'none';
+        }
+    });
+
+    loginForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        loginErrorMsg.style.display = 'none';
+        const username = usernameInput.value;
+        const password = passwordInput.value;
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/login.php`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ username, password }),
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                userState = {
+                    isLoggedIn: true,
+                    level: result.level,
+                    token: result.token,
+                    name: result.member.nick,
+                };
+                updateLoginUI();
+                loginModal.style.display = 'none';
+                loginForm.reset();
+            } else {
+                loginErrorMsg.textContent = result.message || 'Login failed.';
+                loginErrorMsg.style.display = 'block';
+            }
+        } catch (error) {
+            loginErrorMsg.textContent = 'An error occurred. Please try again.';
+            loginErrorMsg.style.display = 'block';
+            console.error('Login request failed:', error);
+        }
     });
 
     // Load default category

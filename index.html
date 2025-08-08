@@ -309,8 +309,13 @@
                     <span>시리즈</span>
                     <span>제작자</span>
                 </div>
-                <div class="search-bar">
-                    <input type="search" placeholder="🔍 검색...">
+                <form id="search-form" class="search-bar">
+                    <input type="search" id="search-input" placeholder="🔍 검색...">
+                </form>
+                <div id="user-actions">
+                    <button id="login-btn">Login</button>
+                    <span id="user-info" style="display: none;"></span>
+                    <button id="logout-btn" style="display: none;">Logout</button>
                 </div>
             </header>
             <div class="filter-bar">
@@ -328,6 +333,30 @@
 
     <!-- This script will handle the UI logic -->
     <script src="./renderer.js"></script>
+
+    <!-- Login Modal -->
+    <div id="login-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content" style="max-width: 400px; height: auto;">
+            <header class="modal-header">
+                <h2>Login</h2>
+                <button id="login-modal-close-btn" class="close-btn">&times;</button>
+            </header>
+            <div class="modal-body" style="padding: 20px;">
+                <form id="login-form">
+                    <div class="form-group">
+                        <label for="username">Username</label>
+                        <input type="text" id="username" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" required>
+                    </div>
+                    <button type="submit" id="login-submit-btn">Login</button>
+                    <p id="login-error-msg" style="color: #ff6b6b; text-align: center; display: none;"></p>
+                </form>
+            </div>
+        </div>
+    </div>
 
     <!-- Detail View Modal -->
     <div id="detail-modal" class="modal-overlay" style="display: none;">
