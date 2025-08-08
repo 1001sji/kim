@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>AXON Style Wallpaper App</title>
+    <!--
+      Content-Security-Policy is a security feature that helps prevent
+      cross-site scripting (XSS) and other code injection attacks.
+      'self' allows resources (like scripts and images) from the same origin.
+      'unsafe-inline' is needed for inline styles. A better approach for production
+      would be to move all styles to a separate CSS file.
+    -->
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self'; style-src 'self' 'unsafe-inline';">
+    <style>
+        :root {
+            --primary-bg-color: #121212;
+            --secondary-bg-color: #1a1a1a;
+            --text-color: #e0e0e0;
+            --accent-color: #00aaff;
+            --border-color: #333;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            background-color: var(--primary-bg-color);
+            color: var(--text-color);
+            overflow: hidden;
+        }
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+        .sidebar {
+            width: 240px;
+            background-color: var(--secondary-bg-color);
+            padding: 20px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+        }
+        .sidebar h1 {
+            color: var(--accent-color);
+            margin: 0 0 30px 0;
+            font-size: 24px;
+        }
+        .sidebar nav ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .sidebar nav li {
+            padding: 12px 15px;
+            cursor: pointer;
+            border-radius: 5px;
+            margin-bottom: 8px;
+            transition: background-color 0.2s;
+        }
+        .sidebar nav li:hover {
+            background-color: #2a2a2a;
+        }
+        .main-content {
+            flex-grow: 1;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            box-sizing: border-box;
+        }
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-shrink: 0;
+        }
+        .top-nav span {
+            margin-right: 20px;
+            cursor: pointer;
+        }
+        .search-bar input {
+            background-color: #2a2a2a;
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            padding: 8px 12px;
+            border-radius: 5px;
+            min-width: 250px;
+        }
+        .filter-bar {
+            margin-bottom: 20px;
+            flex-shrink: 0;
+        }
+        .filter-bar span {
+            margin-right: 15px;
+        }
+        #gallery-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+            overflow-y: auto;
+            flex-grow: 1;
+            padding-right: 10px; /* for scrollbar */
+        }
+        /* For Webkit browsers like Chrome, Electron */
+        #gallery-grid::-webkit-scrollbar {
+            width: 8px;
+        }
+        #gallery-grid::-webkit-scrollbar-track {
+            background: var(--secondary-bg-color);
+        }
+        #gallery-grid::-webkit-scrollbar-thumb {
+            background-color: #555;
+            border-radius: 4px;
+        }
+
+        /* Styles for the dynamically loaded gallery items */
+        .gallery-item {
+            position: relative;
+            cursor: pointer;
+            overflow: hidden;
+            border-radius: 8px;
+            background-color: var(--secondary-bg-color);
+            aspect-ratio: 16 / 10; /* Maintain a consistent aspect ratio */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .gallery-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s ease;
+        }
+        .gallery-item:hover img {
+            transform: scale(1.1);
+        }
+        .item-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(to top, rgba(0,0,0,0.85), transparent);
+            padding: 20px 10px 10px 10px;
+            color: white;
+            opacity: 0;
+            transform: translateY(100%);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            box-sizing: border-box;
+        }
+        .gallery-item:hover .item-overlay {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .item-title {
+            margin: 0;
+            font-size: 14px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .no-image {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+            color: #888;
+            font-size: 14px;
+        }
+
+        /* --- Modal Styles --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.85);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            backdrop-filter: blur(5px);
+        }
+        .modal-content {
+            background-color: var(--secondary-bg-color);
+            border-radius: 10px;
+            width: 85%;
+            max-width: 1300px;
+            height: 85%;
+            max-height: 800px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+            animation: fadeIn 0.3s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 25px;
+            border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
+        }
+        .modal-header h2 {
+            margin: 0;
+            font-size: 20px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .close-btn {
+            background: none;
+            border: none;
+            color: var(--text-color);
+            font-size: 28px;
+            cursor: pointer;
+            padding: 0 10px;
+        }
+        .modal-body {
+            display: flex;
+            flex-grow: 1;
+            overflow: hidden;
+        }
+        .preview-container {
+            flex: 3;
+            background-color: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+        .preview-container img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        .info-container {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            border-left: 1px solid var(--border-color);
+        }
+        .info-container h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+            color: var(--accent-color);
+        }
+        .info-container ul {
+            list-style: none;
+            padding: 0;
+            margin-bottom: 20px;
+        }
+        .info-container li {
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .action-buttons button {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            border-radius: 5px;
+            border: 1px solid var(--accent-color);
+            font-size: 16px;
+            background-color: transparent;
+            color: var(--accent-color);
+            transition: background-color 0.2s, color 0.2s;
+        }
+        .action-buttons button:hover {
+            background-color: var(--accent-color);
+            color: var(--primary-bg-color);
+        }
+        .monitor-selection label {
+            display: block;
+            margin-bottom: 8px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <aside class="sidebar">
+            <h1>AXON</h1>
+            <nav>
+                <ul>
+                    <li>🏠 홈</li>
+                    <li>📊 컬렉션</li>
+                    <li>💎 프리미엄</li>
+                    <li>🎬 동영상</li>
+                    <li>⚙️ 설정</li>
+                    <li>🎮 게임</li>
+                    <li>🎯 포인트</li>
+                </ul>
+            </nav>
+        </aside>
+        <main class="main-content">
+            <header class="top-bar">
+                <div class="top-nav">
+                    <span>최신 소식</span>
+                    <span>찾아보기</span>
+                    <span>시리즈</span>
+                    <span>제작자</span>
+                </div>
+                <div class="search-bar">
+                    <input type="search" placeholder="🔍 검색...">
+                </div>
+            </header>
+            <div class="filter-bar">
+                <span>⭐ 즐겨찾기</span>
+                <span>🔊 오디오</span>
+                <span>🔲 배치</span>
+                <span>⇅ 정렬</span>
+            </div>
+            <section id="gallery-grid">
+                <!-- Wallpapers will be loaded here by renderer.js -->
+                <p>Loading wallpapers...</p>
+            </section>
+        </main>
+    </div>
+
+    <!-- This script will handle the UI logic -->
+    <script src="./renderer.js"></script>
+
+    <!-- Detail View Modal -->
+    <div id="detail-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <header class="modal-header">
+                <h2 id="detail-title">Wallpaper Title</h2>
+                <button id="modal-close-btn" class="close-btn">&times;</button>
+            </header>
+            <div class="modal-body">
+                <div class="preview-container">
+                    <img id="detail-image" src="" alt="Wallpaper preview">
+                    <!-- TODO: Add video element for video wallpapers -->
+                </div>
+                <aside class="info-container">
+                    <h3>📊 Information</h3>
+                    <ul id="detail-info-list">
+                        <!-- li elements will be populated by JS -->
+                    </ul>
+                    <h3>🖼️ Apply Wallpaper</h3>
+                    <div id="monitor-selection" class="monitor-selection">
+                        <!-- Radio buttons will be populated by JS -->
+                        <p>Loading monitors...</p>
+                    </div>
+                    <h3>⚙️ Actions</h3>
+                    <div class="action-buttons">
+                        <button id="detail-apply-btn">Apply to Selected</button>
+                        <button id="detail-download-btn">📥 Download</button>
+                        <button id="detail-favorite-btn">⭐ Add to Favorites</button>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
