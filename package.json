@@ -1,0 +1,22 @@
+{
+  "name": "gnuboard-wallpaper-app",
+  "version": "1.0.0",
+  "description": "Desktop app to browse and set wallpapers from a GnuBoard gallery.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "keywords": [
+    "Electron",
+    "GnuBoard",
+    "Wallpaper"
+  ],
+  "author": "Jules",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^28.0.0"
+  },
+  "dependencies": {
+    "wallpaper": "^7.0.0"
+  }
+}
